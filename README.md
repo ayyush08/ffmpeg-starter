@@ -1,2 +1,3 @@
 # ffmpeg-starter
-Repo regarding video streaming practice with ffmpeg
+Repo regarding video streaming practice with ffmpeg and node.js
+```
