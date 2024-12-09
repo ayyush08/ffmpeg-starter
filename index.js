@@ -3,6 +3,11 @@ import cors from "cors";
 import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
 import path from "path";
+import fs from "fs";
+import { exec } from "child_process"; // not recommended to use in production
+import { stderr, stdout } from "process";
+
+
 const app = express();
 
 
@@ -49,10 +54,39 @@ app.get("/", (req, res) => {
 
 
 app.post("/upload", upload.single("file"),function(req, res){
-    console.log("File uploaded successfully");
-    res.json({message:"File uploaded successfully"});
-})
+    const lessonId = uuidv4();
+    const videoPath = req.file.path; // ffmpeg library needs this path
+    const outputPath = `./fileUploads/lessons/${lessonId}`
 
+    const hlsPath = `${outputPath}/index.m3u8` // m3u8 file is a UTF-8 encoded playlist file. These files are plain text files that can be used to store the URL paths of streaming media files and information about the media tracks.
+    console.log("HLS Path: ", hlsPath);
+
+    // Suppose the output path does not exist
+    if(!fs.existsSync(outputPath)){
+        fs.mkdirSync(outputPath, {recursive: true});
+    }
+
+    // ffmpeg command - all optimization is done here
+    const ffmpegCommand = `ffmpeg -i ${videoPath} -codec:v libx264 -codec:a aac -hls_time 10 -hls_playlist_type vod -hls_segment_filename "${outputPath}/segment%03d.ts" -start_number 0 ${hlsPath}`;
+    // no queue because of POC, not recommended for production
+    exec(ffmpegCommand,(error,stdout,stderr)=>{
+        if(error){
+            console.log("exec error: ", error);
+            return;
+        }
+        console.log("stdout: ", stdout);
+        console.log("stderr: ", stderr);
+
+        const videoUrl = `http://localhost:5000/fileUploads/lessons/${lessonId}/index.m3u8`; //to be saved in the database
+
+        res.json({
+            message: "Video converted to HLS format",
+            videoUrl: videoUrl,
+            lessonId: lessonId
+        }).status(200);
+    })
+
+})
 
 app.listen(5000, () => {
     console.log("Server is running on port 5000");
